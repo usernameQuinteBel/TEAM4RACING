@@ -1,1 +1,48 @@
-
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEAM4RACING - Speel Nu</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://github.com/code4fukui/pygame.js/blob/main/pygame.js"></script>
+</head>
+<body>
+    <header>
+        <h1>🏎️ TEAM4RACING - Speel Nu! 🏁</h1>
+    </header>
+    <main>
+        <section class="game-section">
+            <h2>🎮 Speel de game direct in je browser! 🎮</h2>
+            <canvas id="pygame-canvas"></canvas>
+            <script type="text/python">
+                import pygame
+                from pygame.locals import *
+                
+                pygame.init()
+                screen = pygame.display.set_mode((800, 600))
+                pygame.display.set_caption("TEAM4RACING")
+                clock = pygame.time.Clock()
+                running = True
+                
+                while running:
+                    for event in pygame.event.get():
+                        if event.type == QUIT:
+                            running = False
+                    
+                    screen.fill((0, 0, 0))
+                    pygame.display.flip()
+                    clock.tick(60)
+                
+                pygame.quit()
+            </script>
+        </section>
+        
+        <section class="github-section">
+            <h2>🚀 Bekijk onze GitHub 🚀</h2>
+            <p>Wil je de broncode of bijdragen aan het project? Bezoek dan onze GitHub-repository.</p>
+            <a href="https://github.com/TEAM4RACING" target="_blank" class="github-link">🔗 Ga naar GitHub</a>
+        </section>
+    </main>
+</body>
+</html>
