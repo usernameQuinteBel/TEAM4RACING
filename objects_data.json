@@ -1,0 +1,96 @@
+{
+    "screen_size": {
+        "width": 288,
+        "height": 512
+    },
+    "colors": {
+        "blue": [
+            53,
+            81,
+            92
+        ],
+        "red": [
+            255,
+            0,
+            0
+        ],
+        "yellow": [
+            255,
+            255,
+            0
+        ]
+    },
+    "lane_positions": [
+        50,
+        95,
+        142,
+        190
+    ],
+    "classes": {
+        "Road": {
+            "image_path": "Assets/road.png",
+            "reset_position": {
+                "x": 30,
+                "y1": 0,
+                "y2": -512
+            }
+        },
+        "Player": {
+            "image_size": {
+                "width": 48,
+                "height": 82
+            }
+        },
+        "Obstacle": {
+            "types": {
+                "car": {
+                    "image_size": {
+                        "width": 48,
+                        "height": 82
+                    }
+                },
+                "barrel": {
+                    "image_size": {
+                        "width": 24,
+                        "height": 36
+                    }
+                },
+                "roadblock": {
+                    "image_size": {
+                        "width": 50,
+                        "height": 25
+                    }
+                }
+            }
+        },
+        "Nitro": {
+            "image_path": "Assets/nitro.png",
+            "image_size": {
+                "width": 42,
+                "height": 42
+            }
+        },
+        "Tree": {
+            "image_path": "Assets/trees/{type}.png"
+        },
+        "Fuel": {
+            "image_path": "Assets/fuel.png"
+        },
+        "Coins": {
+            "image_paths": [
+                "Assets/Coins/1.png",
+                "Assets/Coins/2.png",
+                "Assets/Coins/3.png",
+                "Assets/Coins/4.png",
+                "Assets/Coins/5.png",
+                "Assets/Coins/6.png"
+            ]
+        },
+        "Button": {
+            "image_size": {
+                "width": "variable",
+                "height": "variable"
+            }
+        }
+    }
+}
