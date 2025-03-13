@@ -8,9 +8,7 @@ from vosk import Model, KaldiRecognizer
 import pyaudio
 from objects import Road, Player, Nitro, Tree, Button, Obstacle, Coins, Fuel
 import math
-
-
-
+import asyncio
 
 # Initialize Pygame
 pygame.init()
@@ -64,7 +62,6 @@ vosk_off_img = pygame.image.load("Assets/buttons/voiceOff.png")
 vosk_on_img = pygame.image.load("Assets/buttons/voiceOn.png")
 car_crash_fx = pygame.mixer.Sound('Sounds/car-crash_A_minor.wav')
 car_crash_fx.set_volume(1.0)
-
 
 cars = []
 car_type = 0
@@ -188,268 +185,277 @@ listener_thread = threading.Thread(target=listen_for_commands)
 listener_thread.daemon = True
 listener_thread.start()
 
-running = True
-while running:
-    win.fill(BLACK)
+async def game_loop():
+    global running, home_page, car_page, game_page, over_page, paused, current_lane_index, nitro_on, speed, counter, coins, dodged, cfuel, distance_traveled
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+    running = True
+    while running:
+        win.fill(BLACK)
 
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE or event.key == pygame.K_q:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
                 running = False
 
-            if event.key == pygame.K_LEFT:
-                if current_lane_index > 0:
-                    current_lane_index -= 1
-                    p.rect.x = lane_pos[current_lane_index]
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE or event.key == pygame.K_q:
+                    running = False
 
-            if event.key == pygame.K_RIGHT:
-                if current_lane_index < len(lane_pos) - 1:
-                    current_lane_index += 1
-                    p.rect.x = lane_pos[current_lane_index]
+                if event.key == pygame.K_LEFT:
+                    if current_lane_index > 0:
+                        current_lane_index -= 1
+                        p.rect.x = lane_pos[current_lane_index]
 
-            if event.key == pygame.K_UP:
-                nitro_on = True
+                if event.key == pygame.K_RIGHT:
+                    if current_lane_index < len(lane_pos) - 1:
+                        current_lane_index += 1
+                        p.rect.x = lane_pos[current_lane_index]
 
-            if event.key == pygame.K_p:  # Pause the game
-                paused = not paused
+                if event.key == pygame.K_UP:
+                    nitro_on = True
 
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_UP:
+                if event.key == pygame.K_p:  # Pause the game
+                    paused = not paused
+
+            if event.type == pygame.KEYUP:
+                if event.key == pygame.K_UP:
+                    nitro_on = False
+                    speed = 1
+                    counter_inc = 1
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = event.pos
+
+                if nitro.rect.collidepoint((x, y)):
+                    nitro_on = True
+
+            if event.type == pygame.MOUSEBUTTONUP:
                 nitro_on = False
-                speed = 1
+                speed = 3
                 counter_inc = 1
 
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            x, y = event.pos
+        # Handle voice commands
+        if vosk_on:  # Only process voice commands if Vosk is on
+            if voice_command == "links" and current_lane_index > 0:  # Replace "left" with "links"
+                current_lane_index -= 1
+                p.rect.x = lane_pos[current_lane_index]
+                voice_command = None  # Reset the command after processing
 
-            if nitro.rect.collidepoint((x, y)):
-                nitro_on = True
+            if voice_command == "rechts" and current_lane_index < len(lane_pos) - 1:  # Replace "right" with "rechts"
+                current_lane_index += 1
+                p.rect.x = lane_pos[current_lane_index]
+                voice_command = None  # Reset the command after processing
 
-        if event.type == pygame.MOUSEBUTTONUP:
-            nitro_on = False
-            speed = 3
-            counter_inc = 1
+        if home_page:
+            win.blit(home_img, (0, 0))
+            counter += 1
+            if counter % 60 == 0:
+                home_page = False
+                car_page = True
 
-    # Handle voice commands
-    if vosk_on:  # Only process voice commands if Vosk is on
-        if voice_command == "links" and current_lane_index > 0:  # Replace "left" with "links"
-            current_lane_index -= 1
-            p.rect.x = lane_pos[current_lane_index]
-            voice_command = None  # Reset the command after processing
+        if car_page:
+            win.blit(car_bg_img, (0, 0))  # Draw the background image
 
-        if voice_command == "rechts" and current_lane_index < len(lane_pos) - 1:  # Replace "right" with "rechts"
-            current_lane_index += 1
-            p.rect.x = lane_pos[current_lane_index]
-            voice_command = None  # Reset the command after processing
+            win.blit(select_car, (center(select_car), 80))
 
-    if home_page:
-        win.blit(home_img, (0, 0))
-        counter += 1
-        if counter % 60 == 0:
-            home_page = False
-            car_page = True
+            win.blit(cars[car_type], (WIDTH // 2 - 30, 150))
+            if la_btn.draw(win):
+                car_type -= 1
+                click_fx.play()
+                if car_type < 0:
+                    car_type = len(cars) - 1
 
-    if car_page:
-        win.blit(car_bg_img, (0, 0))  # Draw the background image
+            if ra_btn.draw(win):
+                car_type += 1
+                click_fx.play()
+                if car_type >= len(cars):
+                    car_type = 0
 
-        win.blit(select_car, (center(select_car), 80))
+            if play_btn.draw(win):
+                car_page = False
+                game_page = True
 
-        win.blit(cars[car_type], (WIDTH // 2 - 30, 150))
-        if la_btn.draw(win):
-            car_type -= 1
-            click_fx.play()
-            if car_type < 0:
-                car_type = len(cars) - 1
+                start_fx.play()
 
-        if ra_btn.draw(win):
-            car_type += 1
-            click_fx.play()
-            if car_type >= len(cars):
-                car_type = 0
-
-        if play_btn.draw(win):
-            car_page = False
-            game_page = True
-
-            start_fx.play()
-
-            p = Player(100, HEIGHT - 120, car_type)
-            counter = 0
-
-        if vosk_btn.draw(win):  # Toggle Vosk recognition
-            vosk_on = not vosk_on
-            if vosk_on:
-                vosk_btn.update_image(vosk_on_img)
-            else:
-                vosk_btn.update_image(vosk_off_img)
-
-    if over_page:
-        win.blit(end_img, (endx, 0))
-        endx += enddx
-        if endx >= 10 or endx <= -10:
-            enddx *= -1
-
-        win.blit(game_over_img, (center(game_over_img), gameovery))
-        if gameovery < 16:
-            gameovery += 1
-
-        num_coin_img = font.render(f'{coins}', True, WHITE)
-        num_dodge_img = font.render(f'{dodged}', True, WHITE)
-
-        win.blit(coin_img, (80, 240))
-        win.blit(dodge_img, (50, 280))
-        win.blit(num_coin_img, (180, 250))
-        win.blit(num_dodge_img, (180, 300))
-
-        if home_btn.draw(win):
-            over_page = False
-            home_page = True
-
-            coins = 0
-            dodged = 0
-            counter = 0
-            nitro.gas = 0
-            cfuel = 100
-            distance_traveled = 0  # Reset distance
-
-            endx, enddx = 0, 0.5
-            gameovery = -50
-
-        if replay_btn.draw(win):
-            over_page = False
-            game_page = True
-
-            coins = 0
-            dodged = 0
-            counter = 0
-            nitro.gas = 0
-            cfuel = 100
-            distance_traveled = 0  # Reset distance
-
-            endx, enddx = 0, 0.5
-            gameovery = -50
-
-            restart_fx.play()
-
-        if sound_btn.draw(win):
-            sound_on = not sound_on
-
-            if sound_on:
-                sound_btn.update_image(sound_on_img)
-                pygame.mixer.music.play(loops=-1)
-            else:
-                sound_btn.update_image(sound_off_img)
-                pygame.mixer.music.stop()
-
-    if game_page and not paused:  # Only update game if not paused
-        win.blit(bg, (0, 0))
-        road.update(speed)
-        road.draw(win)
-
-        counter += counter_inc
-        distance_traveled += speed  # Increment distance traveled by speed
-
-        # Increase speed over time
-        speed += speed_increment * (distance_traveled / 100)  # Increase speed based on distance
-        if speed > max_speed:  # Cap the speed to a maximum value
-            speed = max_speed
-
-        if counter % 60 == 0:
-            tree = Tree(random.choice([-5, WIDTH - 35]), -20)
-            tree_group.add(tree)
-
-        if counter % 270 == 0:
-            type = random.choices([1, 2], weights=[6, 4], k=1)[0]
-            x = random.choice(lane_pos) + 10
-            if type == 1:
-                count = random.randint(1, 3)
-                for i in range(count):
-                    coin = Coins(x, -100 - (25 * i))
-                    coin_group.add(coin)
-            elif type == 2:
-                fuel = Fuel(x, -100)
-                fuel_group.add(fuel)
-        elif counter % 90 == 0:
-            obs = random.choices([1, 2, 3], weights=[6, 2, 2], k=1)[0]
-            obstacle = Obstacle(obs)
-            obstacle_group.add(obstacle)
-
-        if nitro_on and nitro.gas > 0:
-            x, y = p.rect.centerx - 8, p.rect.bottom - 10
-            win.blit(nitro_frames[nitro_counter], (x, y))
-            nitro_counter = (nitro_counter + 1) % len(nitro_frames)
-
-            speed = 10
-            if counter_inc == 1:
+                p = Player(100, HEIGHT - 120, car_type)
                 counter = 0
-                counter_inc = 5
 
-        if nitro.gas <= 0:
-            speed = 3
-            counter_inc = 1
+            if vosk_btn.draw(win):  # Toggle Vosk recognition
+                vosk_on = not vosk_on
+                if vosk_on:
+                    vosk_btn.update_image(vosk_on_img)
+                else:
+                    vosk_btn.update_image(vosk_off_img)
 
-        nitro.update(nitro_on)
-        nitro.draw(win)
-        obstacle_group.update(speed)
-        obstacle_group.draw(win)
-        tree_group.update(speed)
-        tree_group.draw(win)
-        coin_group.update(speed)
-        coin_group.draw(win)
-        fuel_group.update(speed)
-        fuel_group.draw(win)
+        if over_page:
+            win.blit(end_img, (endx, 0))
+            endx += enddx
+            if endx >= 10 or endx <= -10:
+                enddx *= -1
 
-        p.update(False, False)  # No need to pass move_left and move_right
-        p.draw(win)
+            win.blit(game_over_img, (center(game_over_img), gameovery))
+            if gameovery < 16:
+                gameovery += 1
 
-        if cfuel > 0:
-            pygame.draw.rect(win, GREEN, (20, 20, cfuel, 15), border_radius=5)
-        pygame.draw.rect(win, WHITE, (20, 20, 100, 15), 2, border_radius=5)
-        cfuel -= 0.05
+            num_coin_img = font.render(f'{coins}', True, WHITE)
+            num_dodge_img = font.render(f'{dodged}', True, WHITE)
 
-        # COLLISION DETECTION & KILLS
-        for obstacle in obstacle_group:
-            if obstacle.rect.y >= HEIGHT:
-                if obstacle.type == 1:
-                    dodged += 1
-                obstacle.kill()
+            win.blit(coin_img, (80, 240))
+            win.blit(dodge_img, (50, 280))
+            win.blit(num_coin_img, (180, 250))
+            win.blit(num_dodge_img, (180, 300))
 
-            if pygame.sprite.collide_mask(p, obstacle):
-                pygame.draw.rect(win, RED, p.rect, 1)
-                speed = 0
-                car_crash_fx.play()  # Play crash sound
+            if home_btn.draw(win):
+                over_page = False
+                home_page = True
 
-                game_page = False
-                over_page = True
-
-                tree_group.empty()
-                coin_group.empty()
-                fuel_group.empty()
-                obstacle_group.empty()
-
-
-        if pygame.sprite.spritecollide(p, coin_group, True):
-            coins += 1
-            coin_fx.play()
-
-        if pygame.sprite.spritecollide(p, fuel_group, True):
-            cfuel += 25
-            fuel_fx.play()
-            if cfuel >= 100:
+                coins = 0
+                dodged = 0
+                counter = 0
+                nitro.gas = 0
                 cfuel = 100
+                distance_traveled = 0  # Reset distance
 
-        # Check if fuel is empty
-        if cfuel <= 0:
-            speed = 0  # Stop the speed
-            game_page = False
-            over_page = True  # Go to the game over page
+                endx, enddx = 0, 0.5
+                gameovery = -50
 
-    # Draw the border
-    pygame.draw.rect(win, BLUE, (0, 0, WIDTH, HEIGHT), 3)
-    clock.tick(FPS)
-    pygame.display.update()
+            if replay_btn.draw(win):
+                over_page = False
+                game_page = True
 
-pygame.quit()
+                coins = 0
+                dodged = 0
+                counter = 0
+                nitro.gas = 0
+                cfuel = 100
+                distance_traveled = 0  # Reset distance
+
+                endx, enddx = 0, 0.5
+                gameovery = -50
+
+                restart_fx.play()
+
+            if sound_btn.draw(win):
+                sound_on = not sound_on
+
+                if sound_on:
+                    sound_btn.update_image(sound_on_img)
+                    pygame.mixer.music.play(loops=-1)
+                else:
+                    sound_btn.update_image(sound_off_img)
+                    pygame.mixer.music.stop()
+
+        if game_page and not paused:  # Only update game if not paused
+            win.blit(bg, (0, 0))
+            road.update(speed)
+            road.draw(win)
+
+            counter += counter_inc
+            distance_traveled += speed  # Increment distance traveled by speed
+
+            # Increase speed over time
+            speed += speed_increment * (distance_traveled / 100)  # Increase speed based on distance
+            if speed > max_speed:  # Cap the speed to a maximum value
+                speed = max_speed
+
+            if counter % 60 == 0:
+                tree = Tree(random.choice([-5, WIDTH - 35]), -20)
+                tree_group.add(tree)
+
+            if counter % 270 == 0:
+                type = random.choices([1, 2], weights=[6, 4], k=1)[0]
+                x = random.choice(lane_pos) + 10
+                if type == 1:
+                    count = random.randint(1, 3)
+                    for i in range(count):
+                        coin = Coins(x, -100 - (25 * i))
+                        coin_group.add(coin)
+                elif type == 2:
+                    fuel = Fuel(x, -100)
+                    fuel_group.add(fuel)
+            elif counter % 90 == 0:
+                obs = random.choices([1, 2, 3], weights=[6, 2, 2], k=1)[0]
+                obstacle = Obstacle(obs)
+                obstacle_group.add(obstacle)
+
+            if nitro_on and nitro.gas > 0:
+                x, y = p.rect.centerx - 8, p.rect.bottom - 10
+                win.blit(nitro_frames[nitro_counter], (x, y))
+                nitro_counter = (nitro_counter + 1) % len(nitro_frames)
+
+                speed = 10
+                if counter_inc == 1:
+                    counter = 0
+                    counter_inc = 5
+
+            if nitro.gas <= 0:
+                speed = 3
+                counter_inc = 1
+
+            nitro.update(nitro_on)
+            nitro.draw(win)
+            obstacle_group.update(speed)
+            obstacle_group.draw(win)
+            tree_group.update(speed)
+            tree_group.draw(win)
+            coin_group.update(speed)
+            coin_group.draw(win)
+            fuel_group.update(speed)
+            fuel_group.draw(win)
+
+            p.update(False, False)  # No need to pass move_left and move_right
+            p.draw(win)
+
+            if cfuel > 0:
+                pygame.draw.rect(win, GREEN, (20, 20, cfuel, 15), border_radius=5)
+            pygame.draw.rect(win, WHITE, (20, 20, 100, 15), 2, border_radius=5)
+            cfuel -= 0.05
+
+            # COLLISION DETECTION & KILLS
+            for obstacle in obstacle_group:
+                if obstacle.rect.y >= HEIGHT:
+                    if obstacle.type == 1:
+                        dodged += 1
+                    obstacle.kill()
+
+                if pygame.sprite.collide_mask(p, obstacle):
+                    pygame.draw.rect(win, RED, p.rect, 1)
+                    speed = 0
+                    car_crash_fx.play()  # Play crash sound
+
+                    game_page = False
+                    over_page = True
+
+                    tree_group.empty()
+                    coin_group.empty()
+                    fuel_group.empty()
+                    obstacle_group.empty()
+
+            if pygame.sprite.spritecollide(p, coin_group, True):
+                coins += 1
+                coin_fx.play()
+
+            if pygame.sprite.spritecollide(p, fuel_group, True):
+                cfuel += 25
+                fuel_fx.play()
+                if cfuel >= 100:
+                    cfuel = 100
+
+            # Check if fuel is empty
+            if cfuel <= 0:
+                speed = 0  # Stop the speed
+                game_page = False
+                over_page = True  # Go to the game over page
+
+        # Draw the border
+        pygame.draw.rect(win, BLUE, (0, 0, WIDTH, HEIGHT), 3)
+        clock.tick(FPS)
+        pygame.display.update()
+
+        await asyncio.sleep(0)  # Allow other tasks to run
+
+async def main():
+    await game_loop()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+    pygame.quit()
